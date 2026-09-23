@@ -14634,6 +14634,7 @@ export function maybeInstallE2eTauriMocks() {
       case "plugin:window|set_focus":
       case "plugin:window|set_badge_count":
       case "plugin:window|set_badge_label":
+      case "set_macos_dock_badge":
         return null;
       case "plugin:updater|check":
         return handleUpdaterCheck(activeConfig);

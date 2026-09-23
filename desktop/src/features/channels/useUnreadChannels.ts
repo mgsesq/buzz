@@ -796,6 +796,7 @@ export function useUnreadChannels(
           highPriorityUnreadChannelIds: new Set<string>(),
           unreadChannelCounts: new Map<string, number>(),
           unreadChannelNotificationCount: 0,
+          unreadDmMessageCount: 0,
         };
       }
 
@@ -804,6 +805,9 @@ export function useUnreadChannels(
       const highPriority = new Set<string>();
       const counts = new Map<string, number>();
       let unreadChannelNotificationCount = 0;
+      // Dock badge numerals are reserved for direct messages, so this tracks
+      // unread DM messages only — not the channels holding them.
+      let unreadDmMessageCount = 0;
 
       for (const channel of channels) {
         const isForcedUnread = Object.hasOwn(
@@ -836,7 +840,10 @@ export function useUnreadChannels(
           if (!isForcedUnread) continue;
           unread.add(channel.id);
           topLevelUnread.add(channel.id);
-          if (channel.channelType === "dm") counts.set(channel.id, 1);
+          if (channel.channelType === "dm") {
+            counts.set(channel.id, 1);
+            unreadDmMessageCount += 1;
+          }
           unreadChannelNotificationCount += 1;
           continue;
         }
@@ -866,6 +873,12 @@ export function useUnreadChannels(
           );
         counts.set(channel.id, unreadCount);
         unreadChannelNotificationCount += appBadgeCount;
+        // `appBadgeCount` is the existing per-event answer to "does this
+        // deserve a numeral", so the DM total reuses it rather than counting
+        // every unread event and re-litigating that policy per surface.
+        if (channel.channelType === "dm") {
+          unreadDmMessageCount += appBadgeCount;
+        }
 
         // DM channels: any unread DM is high-priority. Non-DM: high-priority
         // only if at least one mention, broadcast, or relevant thread reply
@@ -881,6 +894,7 @@ export function useUnreadChannels(
         highPriorityUnreadChannelIds: highPriority,
         unreadChannelCounts: counts,
         unreadChannelNotificationCount,
+        unreadDmMessageCount,
       };
     }, [
       activeChannelId,
@@ -902,6 +916,7 @@ export function useUnreadChannels(
   const unreadChannelCounts = useStableMap(rawUnread.unreadChannelCounts);
   const unreadChannelNotificationCount =
     rawUnread.unreadChannelNotificationCount;
+  const unreadDmMessageCount = rawUnread.unreadDmMessageCount;
 
   const unreadChannelIdsRef = React.useRef(unreadChannelIds);
   unreadChannelIdsRef.current = unreadChannelIds;
@@ -956,6 +971,7 @@ export function useUnreadChannels(
     unreadChannelCounts,
     highPriorityUnreadChannelIds,
     unreadChannelNotificationCount,
+    unreadDmMessageCount,
     markAllChannelsRead,
     markChannelRead,
     markChannelUnread,

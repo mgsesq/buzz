@@ -665,6 +665,8 @@ pub fn run() {
             macos_notifications::notification_permission_state,
             #[cfg(target_os = "macos")]
             macos_notifications::request_notification_access,
+            #[cfg(target_os = "macos")]
+            macos_notifications::set_macos_dock_badge,
             upload_media,
             pick_and_upload_media,
             pick_and_upload_image,

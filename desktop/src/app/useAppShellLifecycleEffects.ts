@@ -12,6 +12,7 @@ type AppShellLifecycleEffectsOptions = {
   homeBadgeCountExcludingHighPriority: number;
   topLevelUnreadChannelIds: ReadonlySet<string>;
   unreadChannelNotificationCount: number;
+  unreadDmMessageCount: number;
 };
 
 export function useAppShellLifecycleEffects({
@@ -19,6 +20,7 @@ export function useAppShellLifecycleEffects({
   homeBadgeCountExcludingHighPriority,
   topLevelUnreadChannelIds,
   unreadChannelNotificationCount,
+  unreadDmMessageCount,
 }: AppShellLifecycleEffectsOptions) {
   // Event-driven reconnect: network online / focus / visibility short-circuit
   // the backoff timer when the relay session is degraded (CMD+R gap G1).
@@ -75,17 +77,26 @@ export function useAppShellLifecycleEffects({
       return;
     }
 
-    const count =
-      unreadChannelNotificationCount + homeBadgeCountExcludingHighPriority;
+    // A numeral means "somebody is waiting on you personally", so only unread
+    // DMs earn one. Everything else that would otherwise light the Dock —
+    // mentions, needs-action items, plain channel unread — collapses to a dot,
+    // which is how the count stays readable when a busy channel would
+    // otherwise inflate it into noise.
+    const hasNonDmUnread =
+      topLevelUnreadChannelIds.size > 0 ||
+      unreadChannelNotificationCount > 0 ||
+      homeBadgeCountExcludingHighPriority > 0;
+
     void setDesktopAppBadge(
-      count
-        ? { kind: "count", count }
-        : { kind: topLevelUnreadChannelIds.size ? "dot" : "none" },
+      unreadDmMessageCount
+        ? { kind: "count", count: unreadDmMessageCount }
+        : { kind: hasNonDmUnread ? "dot" : "none" },
     );
   }, [
     desktopBadgeEnabled,
     homeBadgeCountExcludingHighPriority,
     topLevelUnreadChannelIds,
     unreadChannelNotificationCount,
+    unreadDmMessageCount,
   ]);
 }

@@ -21,7 +21,10 @@ use objc2::{
     runtime::{AnyObject, Bool, ProtocolObject},
     AnyThread, DefinedClass,
 };
-use objc2_foundation::{NSBundle, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_app_kit::NSApplication;
+use objc2_foundation::{
+    MainThreadMarker, NSBundle, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString,
+};
 use objc2_user_notifications::{
     UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent,
     UNNotificationDefaultActionIdentifier, UNNotificationPresentationOptions,
@@ -79,9 +82,15 @@ define_class!(
             _notification: &objc2_user_notifications::UNNotification,
             completion_handler: &Block<dyn Fn(UNNotificationPresentationOptions)>,
         ) {
-            // Preserve the prior macOS behavior: keep foreground notifications
-            // in Notification Center without interrupting the user with a banner.
-            completion_handler.call((UNNotificationPresentationOptions::List,));
+            // Buzz has already decided this event deserves an alert before it
+            // reaches the OS — `notifyWhileViewing` gates the active channel,
+            // and ordinary channel traffic never gets here at all. Suppressing
+            // the banner whenever Buzz happened to be frontmost therefore hid
+            // alerts the user explicitly asked for. Sound stays off here
+            // because the renderer plays the user's chosen sound itself.
+            completion_handler
+                .call((UNNotificationPresentationOptions::Banner
+                    | UNNotificationPresentationOptions::List,));
         }
 
         #[unsafe(method(userNotificationCenter:didReceiveNotificationResponse:withCompletionHandler:))]
@@ -189,7 +198,14 @@ fn request_notification_access_sync() -> Result<NotificationPermissionState, Str
     let (sender, receiver) = mpsc::sync_channel(1);
     let handler = RcBlock::new(move |_granted: Bool, error: *mut NSError| {
         let result = match unsafe { error.as_ref() } {
-            Some(error) => Err(format!("macOS notification authorization failed: {error}")),
+            Some(error) => {
+                // An improperly signed bundle fails here, and the renderer can
+                // only log to a devtools console the packaged build does not
+                // expose — which is why a silently unregistered app looked
+                // like a product bug for so long.
+                eprintln!("buzz-desktop: macOS notification authorization failed: {error}");
+                Err(format!("macOS notification authorization failed: {error}"))
+            }
             None => Ok(()),
         };
         let _ = sender.send(result);
@@ -213,6 +229,31 @@ pub(crate) async fn request_notification_access() -> Result<NotificationPermissi
     tokio::task::spawn_blocking(request_notification_access_sync)
         .await
         .map_err(|error| format!("macOS notification authorization task failed: {error}"))?
+}
+
+#[tauri::command]
+pub(crate) fn set_macos_dock_badge(
+    window: tauri::Window,
+    label: Option<String>,
+) -> Result<(), String> {
+    // `Window::set_badge_count` forwards to tao, which reports success for this
+    // bundle while the Dock tile stays empty, so the badge is written straight
+    // to AppKit on the main thread where the Dock actually observes it. A label
+    // rather than a count also lets the caller paint a bullet for the non-DM
+    // indicator, which `set_badge_count` cannot express.
+    window
+        .run_on_main_thread(move || {
+            let Some(mtm) = MainThreadMarker::new() else {
+                eprintln!("buzz-desktop: dock badge skipped — not on the main thread");
+                return;
+            };
+
+            let dock_tile = NSApplication::sharedApplication(mtm).dockTile();
+            let label = label.as_deref().map(NSString::from_str);
+            dock_tile.setBadgeLabel(label.as_deref());
+            dock_tile.display();
+        })
+        .map_err(|error| format!("failed to set macOS Dock badge: {error}"))
 }
 
 fn show_sync(

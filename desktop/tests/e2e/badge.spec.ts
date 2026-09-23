@@ -590,7 +590,9 @@ test("top-level @mention bolds its channel without a trailing numeral", async ({
   );
   await expect(page.getByTestId("channel-unread-random")).toHaveCount(0);
   await expect(page.getByTestId("channel-unread-dot-random")).toHaveCount(0);
-  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 2));
+  // Dock numerals are reserved for DMs — two mentions must read as a dot,
+  // not as "2" waiting direct messages.
+  await waitForBadgeState(page, withDotOnlyBadge(baselineBadge));
 });
 
 test("@mention inside a thread bolds the room and keeps hover-to-preview", async ({
@@ -665,6 +667,52 @@ test("numeric badge increments for DM message", async ({ page }) => {
   await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
 });
 
+test("numeric badge counts DMs only while mentions are also unread", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByTestId("channel-general").click();
+  await expect(page.getByTestId("chat-title")).toHaveText("general");
+  await waitForMockLiveSubscription(page, "alice-tyler");
+  await waitForMockLiveSubscription(page, "random");
+  const baselineBadge = await getSettledBadgeState(page);
+
+  await page.evaluate((pubkey) => {
+    window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      channelName: "alice-tyler",
+      content: "One unread direct message",
+      pubkey,
+    });
+  }, TEST_IDENTITIES.alice.pubkey);
+  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
+
+  // Mentions arriving alongside the DM must not inflate the numeral: the
+  // count answers "how many DMs are waiting", so it stays put.
+  await page.evaluate(
+    ({ pubkey, mentionPubkey }) => {
+      for (const content of ["@tyler one", "@tyler two"]) {
+        window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+          channelName: "random",
+          content,
+          kind: 40002,
+          pubkey,
+          mentionPubkeys: [mentionPubkey],
+        });
+      }
+    },
+    {
+      pubkey: TEST_IDENTITIES.alice.pubkey,
+      mentionPubkey: DEFAULT_MOCK_PUBKEY,
+    },
+  );
+
+  await expect(page.getByTestId("channel-random")).toHaveCSS(
+    "font-weight",
+    "700",
+  );
+  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
+});
+
 test("interested thread reply shows the channel preview dot without incrementing Inbox", async ({
   page,
 }) => {
@@ -736,7 +784,7 @@ test("broadcast reply bolds its channel without a trailing numeral", async ({
     "700",
   );
   await expect(page.getByTestId("channel-unread-random")).toHaveCount(0);
-  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
+  await waitForBadgeState(page, withDotOnlyBadge(baselineBadge));
 });
 
 test("mark-as-read via context menu clears channel unread indicator", async ({
@@ -798,7 +846,7 @@ test("mark-as-unread via context menu bolds the channel", async ({ page }) => {
   );
   await expect(page.getByTestId("channel-unread-random")).toHaveCount(0);
   await expect(page.getByTestId("channel-unread-dot-random")).toHaveCount(0);
-  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
+  await waitForBadgeState(page, withDotOnlyBadge(baselineBadge));
 });
 
 test("marking a message unread bolds its channel after leaving", async ({
@@ -957,7 +1005,7 @@ test("remote read-state rollback is ignored while local mark-unread still increm
     "700",
   );
   await expect(page.getByTestId("channel-unread-random")).toHaveCount(0);
-  await waitForBadgeState(page, withAdditionalBadgeCount(baselineBadge, 1));
+  await waitForBadgeState(page, withDotOnlyBadge(baselineBadge));
 
   // Step 3: remote advance clears the local forced-unread dot.
   await page.evaluate(

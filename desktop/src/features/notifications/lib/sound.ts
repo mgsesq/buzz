@@ -16,6 +16,7 @@ export const SOUND_NAMES = [
   "doop",
   "flirl",
   "flutter",
+  "knock-brush",
   "oh-no",
   "ping",
   "unison",

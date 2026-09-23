@@ -39,6 +39,11 @@ const NOTIFICATION_SETTINGS_STORAGE_KEY = "buzz-notification-settings.v2";
 const HOME_FEED_SEEN_MAX_ITEMS = 500;
 const EMPTY_FEED_ID_SET: ReadonlySet<string> = new Set();
 
+// Launch-scoped rather than community-scoped: the OS records its answer per
+// application, so re-asking on every community remount would prompt nothing
+// and only repeat the round trip.
+let hasRequestedLaunchPermission = false;
+
 export type NotificationSettings = {
   desktopEnabled: boolean;
   homeBadgeEnabled: boolean;
@@ -209,6 +214,38 @@ export function useNotificationSettings(pubkey?: string) {
     void normalizedPubkey;
     void refreshPermission();
   }, [normalizedPubkey]);
+
+  // Reading the permission never registers the app with the OS; only an
+  // authorization request does. The request previously ran solely when the
+  // Settings toggle flipped on or when a new mention/needs-action item
+  // arrived, so an install that kept the default-on toggle stayed at
+  // "default" forever: every banner and sound was dropped by
+  // `sendDesktopNotification` while the Dock bounce (which needs no
+  // authorization) still fired. Ask once per launch so DMs and thread
+  // replies — which never request on their own — have a real answer.
+  React.useEffect(() => {
+    if (hasRequestedLaunchPermission) return;
+    if (!settings.desktopEnabled) return;
+    if (permission !== "default") return;
+
+    hasRequestedLaunchPermission = true;
+    let isCancelled = false;
+    void requestDesktopNotificationAccess().then(
+      (nextPermission) => {
+        if (!isCancelled) setPermission(nextPermission);
+      },
+      (error) => {
+        // Leave the state at "default" and allow one more attempt so the
+        // Settings toggle stays a working manual retry.
+        hasRequestedLaunchPermission = false;
+        console.warn("Failed to request desktop notification access", error);
+      },
+    );
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [permission, settings.desktopEnabled]);
 
   React.useEffect(() => {
     let cancelPendingRefresh: (() => void) | null = null;

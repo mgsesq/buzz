@@ -24,6 +24,12 @@ export type AppBadgeState =
   | { kind: "dot" }
   | { kind: "count"; count: number };
 
+/**
+ * macOS has no first-class "dot" Dock badge, so the indicator is a bullet
+ * label — the same shape Slack paints for non-DM unread.
+ */
+export const MAC_DOCK_DOT_LABEL = "•";
+
 export type DesktopNotificationTarget = {
   channelId: string | null;
   channelName?: string | null;
@@ -329,24 +335,24 @@ export async function setDesktopAppBadge(state: AppBadgeState): Promise<void> {
   }
 
   try {
+    if (isMacPlatform()) {
+      // The Dock tile takes a label, not a number, which is what lets the
+      // non-DM state render as the same bullet Slack uses instead of a "1"
+      // the user would read as one unread DM.
+      const label =
+        state.kind === "count"
+          ? String(state.count)
+          : state.kind === "dot"
+            ? MAC_DOCK_DOT_LABEL
+            : null;
+      await invoke("set_macos_dock_badge", { label });
+      return;
+    }
+
     const currentWindow = getCurrentWindow();
     if (state.kind === "count") {
-      // Clear any prior label so a previous "dot" can't stick on macOS.
-      if (isMacPlatform()) {
-        await currentWindow.setBadgeLabel("");
-      }
       await currentWindow.setBadgeCount(state.count);
-    } else if (state.kind === "dot" && isMacPlatform()) {
-      // macOS Dock badges are numeric in practice. A blank badgeLabel (" ") was
-      // used to request a "dot", but it does not produce a visible Dock badge,
-      // so ordinary channel unreads never lit the icon. Use a minimal count so
-      // the product intent (any unread → Dock indicator) is actually visible.
-      await currentWindow.setBadgeLabel("");
-      await currentWindow.setBadgeCount(1);
     } else {
-      if (isMacPlatform()) {
-        await currentWindow.setBadgeLabel("");
-      }
       await currentWindow.setBadgeCount(undefined);
     }
   } catch (error) {
