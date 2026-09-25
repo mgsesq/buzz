@@ -118,6 +118,17 @@ test("repositoryDisplayPath renders an external repo as host/path without .git",
     ),
     "github.com/block/buzz",
   );
+  assert.equal(
+    repositoryDisplayPath(
+      {
+        cloneUrls: ["https://gitlab.com/group/sub/project.git"],
+        dtag: "project",
+        owner: OWNER,
+      },
+      ORIGIN,
+    ),
+    "gitlab.com/group/sub/project",
+  );
 });
 
 test("repositoryDisplayPath renders a relay-hosted repo as owner/repo", () => {

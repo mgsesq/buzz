@@ -1,10 +1,10 @@
+import type { SVGProps } from "react";
 import {
   ChevronDown,
   Cloud,
   DownloadCloud,
   ExternalLink,
   GitBranch,
-  Globe,
   HardDrive,
   Loader2,
   Plus,
@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/shared/ui/dropdown-menu";
-import { GitHubMark } from "./GitHubMark";
+import { ExternalForgeIcon } from "./ExternalForgeIcon";
 import {
   PROJECT_PANEL_ACTION_BUTTON_CLASS,
   PROJECT_PICKER_TRIGGER_CLASS,
@@ -224,12 +224,12 @@ export function RepoSourceDropdown({
   const cloneLocal = controls.localDisabled && controls.onCloneLocal;
   const localPath = controls.localPath?.trim() || null;
   const shortLocalPath = localPath ? shortenProjectPath(localPath) : null;
-  const RemoteIcon =
-    controls.remoteKind === "external"
-      ? controls.remoteLabel === "github.com"
-        ? GitHubMark
-        : Globe
-      : Cloud;
+  const RemoteIcon = (props: SVGProps<SVGSVGElement>) =>
+    controls.remoteKind === "external" ? (
+      <ExternalForgeIcon host={controls.remoteLabel} {...props} />
+    ) : (
+      <Cloud {...props} />
+    );
   const SourceIcon = isLocal ? HardDrive : RemoteIcon;
   return (
     <DropdownMenu>

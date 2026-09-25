@@ -1,3 +1,4 @@
+import { anonymousPublicForgeFromUrl } from "./projectExternalForge";
 import type { ProjectRepoUnavailableReason } from "./projectRepoAvailability";
 
 export type ProjectGitErrorPresentation = {
@@ -10,21 +11,13 @@ function errorText(error: unknown) {
   return typeof error === "string" ? error.toLowerCase() : "";
 }
 
-function isGitHubUrl(cloneUrl: string | null | undefined) {
-  try {
-    return new URL(cloneUrl ?? "").hostname.toLowerCase() === "github.com";
-  } catch {
-    return false;
-  }
-}
-
 export function projectCloneErrorPresentation(
   error: unknown,
   cloneUrl?: string | null,
   unavailableReason?: ProjectRepoUnavailableReason,
 ): ProjectGitErrorPresentation {
   const message = errorText(error);
-  const github = isGitHubUrl(cloneUrl);
+  const forge = anonymousPublicForgeFromUrl(cloneUrl);
 
   if (unavailableReason === "access") {
     return {
@@ -40,8 +33,8 @@ export function projectCloneErrorPresentation(
   ) {
     return {
       title: "Repository access required",
-      description: github
-        ? "This repository requires GitHub authentication. Buzz currently clones public GitHub repositories without credentials."
+      description: forge
+        ? `This repository requires ${forge.name} authentication. Buzz currently clones public ${forge.name} repositories without credentials.`
         : "Buzz could not authenticate with this repository. Check your access and try again.",
     };
   }
@@ -75,8 +68,8 @@ export function projectCloneErrorPresentation(
   }
   return {
     title: "Couldn’t clone repository",
-    description: github
-      ? "Try again, or open the repository on GitHub for more information."
+    description: forge
+      ? `Try again, or open the repository on ${forge.name} for more information.`
       : "Try again. If the problem continues, contact the repository owner.",
   };
 }

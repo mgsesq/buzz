@@ -2,7 +2,6 @@ import {
   BookOpen,
   DownloadCloud,
   ExternalLink,
-  Globe,
   Loader2,
   MessageCircle,
 } from "lucide-react";
@@ -25,7 +24,7 @@ import {
   RepoSyncActionButton,
   RepositoryBranchDropdown,
 } from "./ProjectRepositorySource";
-import { GitHubMark } from "./GitHubMark";
+import { ExternalForgeIcon } from "./ExternalForgeIcon";
 import { ProjectRepositoryUnavailableState } from "./ProjectRepositoryUnavailableState";
 import { ProjectPanelState } from "./ProjectPanelState";
 
@@ -200,11 +199,7 @@ export function ReadmePanel({
       <section className="overflow-hidden">
         <div className="flex min-h-64 flex-col items-center justify-center p-8 text-center">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-muted/40 text-muted-foreground">
-            {externalHost === "github.com" ? (
-              <GitHubMark className="h-6 w-6" />
-            ) : (
-              <Globe className="h-6 w-6" />
-            )}
+            <ExternalForgeIcon className="h-6 w-6" host={externalHost} />
           </div>
           <h3 className="text-base font-semibold text-foreground">
             Code hosted on {externalHost}

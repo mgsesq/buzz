@@ -13,6 +13,20 @@ test("opens the selected GitHub branch", () => {
   );
 });
 
+test("opens the selected GitLab branch including nested groups", () => {
+  assert.equal(
+    projectExternalRefUrl("https://gitlab.com/block/buzz.git/", "main"),
+    "https://gitlab.com/block/buzz/-/tree/main",
+  );
+  assert.equal(
+    projectExternalRefUrl(
+      "https://gitlab.com/group/sub/project",
+      "fix/agent-profile",
+    ),
+    "https://gitlab.com/group/sub/project/-/tree/fix%2Fagent-profile",
+  );
+});
+
 test("normalizes clone URLs before adding the selected ref", () => {
   assert.equal(
     projectExternalRefUrl("https://github.com/block/buzz.git/", "main"),
@@ -22,8 +36,8 @@ test("normalizes clone URLs before adding the selected ref", () => {
 
 test("keeps unsupported and unscoped URLs unchanged", () => {
   assert.equal(
-    projectExternalRefUrl("https://gitlab.com/block/buzz", "main"),
-    "https://gitlab.com/block/buzz",
+    projectExternalRefUrl("https://bitbucket.org/block/buzz", "main"),
+    "https://bitbucket.org/block/buzz",
   );
   assert.equal(
     projectExternalRefUrl("https://github.com/block/buzz", null),

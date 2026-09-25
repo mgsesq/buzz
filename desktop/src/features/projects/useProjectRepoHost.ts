@@ -1,4 +1,5 @@
 import type { Repository } from "@/features/projects/hooks";
+import { isAnonymousPublicForgeHost } from "@/features/projects/lib/projectExternalForge";
 import {
   type ProjectRepoHost,
   projectRepoHostForRepository,
@@ -26,7 +27,7 @@ export function useProjectRepoPresentation(
     webUrl,
     canCloneLocally:
       host.kind === "buzz" ||
-      (host.kind === "external" && host.host === "github.com"),
+      (host.kind === "external" && isAnonymousPublicForgeHost(host.host)),
     controls: {
       externalUrl: host.kind === "external" ? webUrl : null,
       remoteKind: host.kind === "unresolved" ? undefined : host.kind,

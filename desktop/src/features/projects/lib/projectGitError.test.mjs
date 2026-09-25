@@ -19,6 +19,22 @@ test("explains unsupported authenticated GitHub clones without exposing git outp
   );
 });
 
+test("explains unsupported authenticated GitLab clones without exposing git output", () => {
+  assert.deepEqual(
+    projectCloneErrorPresentation(
+      new Error(
+        "Cloning into '/Users/person/repos/app'... remote: HTTP Basic: Access denied. fatal: Authentication failed for 'https://gitlab.com/example/app.git/'",
+      ),
+      "https://gitlab.com/example/app.git",
+    ),
+    {
+      title: "Repository access required",
+      description:
+        "This repository requires GitLab authentication. Buzz currently clones public GitLab repositories without credentials.",
+    },
+  );
+});
+
 test("presents missing and network failures clearly", () => {
   assert.equal(
     projectCloneErrorPresentation(new Error("Repository not found")).title,

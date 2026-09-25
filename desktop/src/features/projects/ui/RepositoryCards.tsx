@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { FolderGit2, Globe, SquareTerminal } from "lucide-react";
+import { FolderGit2, SquareTerminal } from "lucide-react";
 
 import type {
   Project,
@@ -38,7 +38,7 @@ import {
   ProjectStatsRow,
 } from "./ProjectCards";
 import { CopyShareLinkMenuItem } from "./CopyShareLinkMenuItem";
-import { GitHubMark } from "./GitHubMark";
+import { ExternalForgeIcon } from "./ExternalForgeIcon";
 import { ProjectListRowMenu } from "./ProjectListRowMenu";
 import { PROJECT_GRID_CARD_BODY_CLASS } from "./projectGridCardStyles";
 import { projectTerminalLabel } from "./useOpenProjectTerminal";
@@ -74,10 +74,11 @@ function RepositoryHostIcon({
   const mark =
     host.kind === "buzz" ? (
       <BuzzMark className={compact ? "h-3.5 w-4" : "h-4.5 w-5"} />
-    ) : host.kind === "external" && host.host === "github.com" ? (
-      <GitHubMark className={compact ? "h-3.5 w-3.5" : "h-4.5 w-4.5"} />
     ) : host.kind === "external" ? (
-      <Globe className={compact ? "h-3.5 w-3.5" : "h-4.5 w-4.5"} />
+      <ExternalForgeIcon
+        className={compact ? "h-3.5 w-3.5" : "h-4.5 w-4.5"}
+        host={host.host}
+      />
     ) : (
       <FolderGit2 className={compact ? "h-3.5 w-3.5" : "h-4.5 w-4.5"} />
     );

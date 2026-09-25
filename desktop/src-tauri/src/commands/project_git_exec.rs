@@ -207,7 +207,7 @@ pub(crate) fn build_git_clone_auth_config(
     clone_url: &str,
     state: &AppState,
 ) -> Result<GitAuthConfig, String> {
-    if validate_github_clone_url(clone_url).is_ok() {
+    if validate_public_forge_clone_url(clone_url).is_ok() {
         return Ok(GitAuthConfig {
             git_path: resolve_command("git")
                 .ok_or_else(|| "git was not found on PATH".to_string())?,
@@ -304,18 +304,53 @@ pub(crate) fn validate_clone_url(clone_url: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_github_clone_url(clone_url: &str) -> Result<(), String> {
+/// Public forges the desktop may clone anonymously — no credentials, HTTPS
+/// only, and a strict path shape so a web UI URL cannot sneak through as a
+/// git remote.
+struct PublicForgeClone {
+    host: &'static str,
+    min_segments: usize,
+    max_segments: usize,
+}
+
+const PUBLIC_FORGE_CLONES: &[PublicForgeClone] = &[
+    PublicForgeClone {
+        host: "github.com",
+        min_segments: 2,
+        max_segments: 2,
+    },
+    // GitLab allows nested groups; cap depth so a pasted `/-/merge_requests`
+    // URL cannot masquerade as a clone remote.
+    PublicForgeClone {
+        host: "gitlab.com",
+        min_segments: 2,
+        max_segments: 21,
+    },
+];
+
+fn validate_public_forge_clone_url(clone_url: &str) -> Result<(), String> {
     let parsed = Url::parse(clone_url).map_err(|error| format!("invalid clone URL: {error}"))?;
     if parsed.scheme() != "https"
-        || parsed.host_str() != Some("github.com")
         || parsed.port().is_some()
         || !parsed.username().is_empty()
         || parsed.password().is_some()
         || parsed.query().is_some()
         || parsed.fragment().is_some()
     {
-        return Err("GitHub clone URL must use public https://github.com/owner/repository".into());
+        return Err(
+            "public forge clone URL must use anonymous https://host/owner/repository".into(),
+        );
     }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "public forge clone URL must include a host".to_string())?;
+    let forge = PUBLIC_FORGE_CLONES
+        .iter()
+        .find(|candidate| candidate.host == host)
+        .ok_or_else(|| {
+            "clone URL must point at a Buzz repository or a public GitHub or GitLab repository"
+                .to_string()
+        })?;
     let segments = parsed
         .path_segments()
         .map(|segments| {
@@ -325,30 +360,39 @@ fn validate_github_clone_url(clone_url: &str) -> Result<(), String> {
         })
         .unwrap_or_default();
     let valid_segment = |segment: &&str| {
-        !segment.starts_with('-')
+        *segment != "-"
+            && !segment.starts_with('-')
             && !segment.contains("..")
             && segment.chars().all(|character| {
                 character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
             })
     };
-    if segments.len() != 2 || !segments.iter().all(valid_segment) {
-        return Err("GitHub clone URL must name one owner and repository".into());
+    if segments.len() < forge.min_segments
+        || segments.len() > forge.max_segments
+        || !segments.iter().all(valid_segment)
+    {
+        return Err(format!(
+            "{} clone URL must name a group or owner and repository",
+            forge.host
+        ));
     }
     Ok(())
 }
 
 pub(crate) fn validate_local_clone_url(clone_url: &str) -> Result<(), String> {
-    if validate_clone_url(clone_url).is_ok() || validate_github_clone_url(clone_url).is_ok() {
+    if validate_clone_url(clone_url).is_ok() || validate_public_forge_clone_url(clone_url).is_ok() {
         return Ok(());
     }
-    Err("clone URL must point at a Buzz repository or public GitHub repository".into())
+    Err(
+        "clone URL must point at a Buzz repository or a public GitHub or GitLab repository".into(),
+    )
 }
 
 pub(crate) fn validate_local_clone_url_for_workspace(
     clone_url: &str,
     state: &AppState,
 ) -> Result<(), String> {
-    if validate_github_clone_url(clone_url).is_ok() {
+    if validate_public_forge_clone_url(clone_url).is_ok() {
         return Ok(());
     }
     validate_workspace_clone_url(clone_url, state)
@@ -510,13 +554,19 @@ mod tests {
     }
 
     #[test]
-    fn local_clone_url_allows_only_public_github_https_urls() {
+    fn local_clone_url_allows_only_public_github_and_gitlab_https_urls() {
         assert!(validate_local_clone_url("https://github.com/block/buzz").is_ok());
         assert!(validate_local_clone_url("https://github.com/block/buzz.git").is_ok());
         assert!(validate_local_clone_url("http://github.com/block/buzz").is_err());
         assert!(validate_local_clone_url("https://github.com/block/buzz/issues").is_err());
         assert!(validate_local_clone_url("https://user@github.com/block/buzz").is_err());
         assert!(validate_local_clone_url("https://github.com.evil.test/block/buzz").is_err());
-        assert!(validate_local_clone_url("https://gitlab.com/block/buzz").is_err());
+        assert!(validate_local_clone_url("https://gitlab.com/block/buzz").is_ok());
+        assert!(validate_local_clone_url("https://gitlab.com/block/buzz.git").is_ok());
+        assert!(validate_local_clone_url("https://gitlab.com/group/sub/project.git").is_ok());
+        assert!(validate_local_clone_url("https://gitlab.com/block/buzz/-/tree/main").is_err());
+        assert!(validate_local_clone_url("http://gitlab.com/block/buzz").is_err());
+        assert!(validate_local_clone_url("https://gitlab.example.com/block/buzz").is_err());
+        assert!(validate_local_clone_url("https://bitbucket.org/block/buzz").is_err());
     }
 }
